@@ -1,6 +1,10 @@
 # todos.nvim
 
+---
+
 ![Todo Plugin Demo](./assets/todo-nvim.gif)
+
+---
 A TODO manager for Neovim with a Rose Pine-themed(default) floating UI,
 project/global scoping, and full JSON persistence.
 
