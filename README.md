@@ -1,6 +1,6 @@
 # todos.nvim
 
-A production-grade TODO manager for Neovim with a Rose Pine-themed floating UI,
+A TODO manager for Neovim with a Rose Pine-themed(default) floating UI,
 project/global scoping, and full JSON persistence.
 
 ---
