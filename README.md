@@ -195,13 +195,3 @@ lua/todo-nvim/
 ```
 
 ---
-
-## Extensibility
-
-The data model already has room for future fields — just add them in
-`storage.add` / `storage.update` calls and render them in `ui.lua`:
-
-- **Tags**: `tags = { "backend", "auth" }`
-- **Deadlines**: `deadline = "2025-05-01"`
-- **Assignees**: `assignee = "alice"`
-- **Notifications**: hook into `updated_at` / deadline checks via autocmd on `VimEnter`
