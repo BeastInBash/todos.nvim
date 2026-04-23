@@ -71,6 +71,20 @@ project/global scoping, and full JSON persistence.
         move_up   = "K",
         help      = "?",
       },
+      color = {
+        base    = "#1e1e2e",   -- Catppuccin Mocha base
+        surface = "#181825",
+        overlay = "#313244",
+        text    = "#cdd6f4",
+        iris    = "#cba6f7",   -- mauve
+        pine    = "#89b4fa",   -- blue
+        foam    = "#94e2d5",   -- teal
+        love    = "#f38ba8",   -- red
+        gold    = "#f9e2af",   -- yellow
+        muted   = "#585b70",
+        subtle  = "#6c7086",
+        highlight_med = "#45475a",
+      }
     })
   end,
 },
