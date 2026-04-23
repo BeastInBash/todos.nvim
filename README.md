@@ -1,4 +1,4 @@
-# todo-nvim
+# todos.nvim
 
 A production-grade TODO manager for Neovim with a Rose Pine-themed floating UI,
 project/global scoping, and full JSON persistence.
@@ -23,7 +23,7 @@ project/global scoping, and full JSON persistence.
 
 ```lua
 {
-  "you/todo-nvim",                     -- replace with real repo
+  "BeastInBash/todos.nvim",                     -- replace with real repo
   event = "VeryLazy",                  -- lazy-load on first real event
   keys = {
     { "<leader>td", desc = "Todo: Open UI" },
@@ -80,9 +80,9 @@ project/global scoping, and full JSON persistence.
 
 ```lua
 use {
-  "you/todo-nvim",
+  "BeastInBash/todos.nvim",
   config = function()
-    require("todo-nvim").setup()
+    require("todo.nvim").setup()
   end,
 }
 ```
