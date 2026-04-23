@@ -1,6 +1,7 @@
 --- todo-nvim/ui.lua
 --- Full floating-window UI for the todo manager
---- Rose Pinecolor palette, split panel layout
+--- Rose Pine color palette, split panel layout
+--- Colors are fully user-overridable via setup({ colors = { ... } })
 
 local M = {}
 
@@ -8,21 +9,22 @@ local storage = require("todo-nvim.storage")
 local utils   = require("todo-nvim.utils")
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- Rose Pine colour palette (moon variant — softer dark)
+-- Default Rose Pine Moon palette
+-- Used as fallback when no colors are passed to setup_highlights()
 -- ─────────────────────────────────────────────────────────────────────────────
-local rose_pine = {
-  base       = "#232136",
-  surface    = "#2a273f",
-  overlay    = "#393552",
-  muted      = "#6e6a86",
-  subtle     = "#908caa",
-  text       = "#e0def4",
-  love       = "#eb6f92",
-  gold       = "#f6c177",
-  rose       = "#ea9a97",
-  pine       = "#3e8fb0",
-  foam       = "#9ccfd8",
-  iris       = "#c4a7e7",
+local DEFAULT_COLORS = {
+  base           = "#232136",
+  surface        = "#2a273f",
+  overlay        = "#393552",
+  muted          = "#6e6a86",
+  subtle         = "#908caa",
+  text           = "#e0def4",
+  love           = "#eb6f92",
+  gold           = "#f6c177",
+  rose           = "#ea9a97",
+  pine           = "#3e8fb0",
+  foam           = "#9ccfd8",
+  iris           = "#c4a7e7",
   highlight_low  = "#2a283e",
   highlight_med  = "#44415a",
   highlight_high = "#56526e",
@@ -30,53 +32,59 @@ local rose_pine = {
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Highlight definitions
+-- Accepts an optional colors table; falls back to Rose Pine Moon defaults.
+-- Call this from setup() and again from M.open() to ensure highlights
+-- are always in sync with the user's config.
 -- ─────────────────────────────────────────────────────────────────────────────
-function M.setup_highlights()
+function M.setup_highlights(colors)
+  -- Merge user colors over defaults — user only needs to specify what changes
+  local c = vim.tbl_extend("force", DEFAULT_COLORS, colors or {})
+
   local hl = function(name, opts)
     vim.api.nvim_set_hl(0, name, opts)
   end
 
   -- Window chrome
-  hl("TodoNormal",       { fg = rose_pine.text,    bg = rose_pine.base })
-  hl("TodoBorder",       { fg = rose_pine.iris,    bg = rose_pine.base })
-  hl("TodoTitle",        { fg = rose_pine.iris,    bg = rose_pine.base, bold = true })
-  hl("TodoHeader",       { fg = rose_pine.pine,    bg = rose_pine.surface, bold = true })
-  hl("TodoSeparator",    { fg = rose_pine.highlight_med, bg = rose_pine.base })
-  hl("TodoFooter",       { fg = rose_pine.muted,   bg = rose_pine.base, italic = true })
+  hl("TodoNormal",          { fg = c.text,          bg = c.base })
+  hl("TodoBorder",          { fg = c.iris,           bg = c.base })
+  hl("TodoTitle",           { fg = c.iris,           bg = c.base,    bold = true })
+  hl("TodoHeader",          { fg = c.pine,           bg = c.surface, bold = true })
+  hl("TodoSeparator",       { fg = c.highlight_med,  bg = c.base })
+  hl("TodoFooter",          { fg = c.muted,          bg = c.base,    italic = true })
 
   -- List items
-  hl("TodoItemNormal",   { fg = rose_pine.text,    bg = rose_pine.base })
-  hl("TodoItemSelected", { fg = rose_pine.text,    bg = rose_pine.overlay, bold = true })
-  hl("TodoItemDone",     { fg = rose_pine.muted,   bg = rose_pine.base, italic = true })
+  hl("TodoItemNormal",      { fg = c.text,           bg = c.base })
+  hl("TodoItemSelected",    { fg = c.text,           bg = c.overlay, bold = true })
+  hl("TodoItemDone",        { fg = c.muted,          bg = c.base,    italic = true })
 
-  -- Status
-  hl("TodoStatusPending",    { fg = rose_pine.subtle })
-  hl("TodoStatusInProgress", { fg = rose_pine.gold, bold = true })
-  hl("TodoStatusDone",       { fg = rose_pine.foam })
+  -- Status indicators
+  hl("TodoStatusPending",    { fg = c.subtle })
+  hl("TodoStatusInProgress", { fg = c.gold,          bold = true })
+  hl("TodoStatusDone",       { fg = c.foam })
 
-  -- Priority
-  hl("TodoPriorityHigh",   { fg = rose_pine.love, bold = true })
-  hl("TodoPriorityMedium", { fg = rose_pine.gold })
-  hl("TodoPriorityLow",    { fg = rose_pine.muted })
+  -- Priority indicators
+  hl("TodoPriorityHigh",    { fg = c.love,           bold = true })
+  hl("TodoPriorityMedium",  { fg = c.gold })
+  hl("TodoPriorityLow",     { fg = c.muted })
 
   -- Detail panel
-  hl("TodoDetailKey",   { fg = rose_pine.iris, bold = true })
-  hl("TodoDetailValue", { fg = rose_pine.text })
-  hl("TodoDetailDesc",  { fg = rose_pine.subtle, italic = true })
+  hl("TodoDetailKey",       { fg = c.iris,           bold = true })
+  hl("TodoDetailValue",     { fg = c.text })
+  hl("TodoDetailDesc",      { fg = c.subtle,         italic = true })
 
-  -- Scope badge
-  hl("TodoScopeGlobal",  { fg = rose_pine.base, bg = rose_pine.pine,  bold = true })
-  hl("TodoScopeProject", { fg = rose_pine.base, bg = rose_pine.iris,  bold = true })
+  -- Scope badge (inverted — bg is the accent colour)
+  hl("TodoScopeGlobal",     { fg = c.base,           bg = c.pine,    bold = true })
+  hl("TodoScopeProject",    { fg = c.base,           bg = c.iris,    bold = true })
 
   -- Input prompt
-  hl("TodoPrompt",       { fg = rose_pine.gold, bold = true })
-  hl("TodoPromptBorder", { fg = rose_pine.gold, bg = rose_pine.base })
+  hl("TodoPrompt",          { fg = c.gold,           bold = true })
+  hl("TodoPromptBorder",    { fg = c.gold,           bg = c.base })
 
-  -- Divider line between panels
-  hl("TodoDivider",      { fg = rose_pine.highlight_med, bg = rose_pine.base })
+  -- Vertical divider between panels
+  hl("TodoDivider",         { fg = c.highlight_med,  bg = c.base })
 
-  -- Empty state
-  hl("TodoEmpty",        { fg = rose_pine.muted, italic = true })
+  -- Empty state message
+  hl("TodoEmpty",           { fg = c.muted,          italic = true })
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -92,12 +100,12 @@ local state = {
   border_win = nil,
 
   -- Data
-  todos      = {},
-  cursor     = 1,        -- selected index in list
-  scope      = "project",
-  config     = nil,
+  todos  = {},
+  cursor = 1,       -- 1-based index of selected item
+  scope  = "project",
+  config = nil,
 
-  -- Dimensions (computed on open)
+  -- Dimensions computed on open
   total_width  = 0,
   total_height = 0,
   left_width   = 0,
@@ -111,14 +119,14 @@ local state = {
 -- ─────────────────────────────────────────────────────────────────────────────
 local function compute_layout(config)
   local ui = vim.api.nvim_list_uis()[1]
-  local w = math.floor(ui.width  * config.ui.width)
-  local h = math.floor(ui.height * config.ui.height)
-  local r = math.floor((ui.height - h) / 2)
-  local c = math.floor((ui.width  - w) / 2)
+  local w  = math.floor(ui.width  * config.ui.width)
+  local h  = math.floor(ui.height * config.ui.height)
+  local r  = math.floor((ui.height - h) / 2)
+  local c  = math.floor((ui.width  - w) / 2)
 
-  -- Left panel gets split_ratio of total width (minus 1 for divider)
+  -- Left panel: split_ratio of total width; right panel gets the rest minus 1 (divider)
   local lw = math.max(20, math.floor(w * config.ui.split_ratio))
-  local rw = w - lw - 1  -- 1 col for divider
+  local rw = w - lw - 1
 
   return { width = w, height = h, row = r, col = c, lw = lw, rw = rw }
 end
@@ -128,7 +136,7 @@ end
 -- ─────────────────────────────────────────────────────────────────────────────
 local function make_buf()
   local buf = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_set_option_value("bufhidden", "wipe",  { buf = buf })
+  vim.api.nvim_set_option_value("bufhidden", "wipe",   { buf = buf })
   vim.api.nvim_set_option_value("buftype",   "nofile", { buf = buf })
   vim.api.nvim_set_option_value("swapfile",  false,    { buf = buf })
   return buf
@@ -147,24 +155,28 @@ local function render_list()
   local buf = state.list_buf
   if not buf or not vim.api.nvim_buf_is_valid(buf) then return end
 
-  local w      = state.left_width
-  local todos  = state.todos
-  local lines  = {}
-  local hls    = {}   -- { line, col_start, col_end, hl_group }
+  local w     = state.left_width
+  local todos = state.todos
+  local lines = {}
+  local hls   = {}  -- { line_idx, col_start, col_end, hl_group }
 
-  -- Header
+  -- ── Header row ────────────────────────────────────────────────────────────
   local scope_label = state.scope == "global" and " ⊕ GLOBAL " or " ⊙ PROJECT "
   local scope_hl    = state.scope == "global" and "TodoScopeGlobal" or "TodoScopeProject"
   local count_str   = string.format(" %d items ", #todos)
-  local header_pad  = string.rep(" ", math.max(0, w - vim.fn.strdisplaywidth(scope_label) - vim.fn.strdisplaywidth(count_str)))
+  local pad_w       = math.max(0, w
+    - vim.fn.strdisplaywidth(scope_label)
+    - vim.fn.strdisplaywidth(count_str))
 
-  lines[#lines + 1] = scope_label .. header_pad .. count_str
-  hls[#hls + 1] = { #lines - 1, 0, #scope_label, scope_hl }
+  lines[#lines + 1] = scope_label .. string.rep(" ", pad_w) .. count_str
+  hls[#hls + 1] = { #lines - 1, 0, vim.fn.strdisplaywidth(scope_label), scope_hl }
   hls[#hls + 1] = { #lines - 1, 0, w, "TodoHeader" }
 
+  -- ── Separator ─────────────────────────────────────────────────────────────
   lines[#lines + 1] = string.rep("─", w)
   hls[#hls + 1] = { #lines - 1, 0, w, "TodoSeparator" }
 
+  -- ── Items or empty state ──────────────────────────────────────────────────
   if #todos == 0 then
     lines[#lines + 1] = ""
     lines[#lines + 1] = utils.center("  No TODOs yet", w)
@@ -177,7 +189,7 @@ local function render_list()
       local p_icon, p_hl = utils.priority_icon(todo.priority)
       local is_sel       = (i == state.cursor)
 
-      -- Build the display line: [p_icon] [s_icon]  title
+      -- Layout: " <prio> <status>  <title padded> "
       local prefix   = string.format(" %s %s  ", p_icon, s_icon)
       local avail    = w - vim.fn.strdisplaywidth(prefix) - 1
       local title    = utils.truncate(todo.title or "", avail)
@@ -185,34 +197,31 @@ local function render_list()
 
       lines[#lines + 1] = line_str
 
-      local li = #lines - 1
-      -- Row background
+      local li     = #lines - 1
       local row_hl = is_sel and "TodoItemSelected"
         or (todo.status == "done" and "TodoItemDone" or "TodoItemNormal")
-      hls[#hls + 1] = { li, 0, w, row_hl }
 
-      -- Priority icon colour (always on top of row bg)
+      hls[#hls + 1] = { li, 0, w, row_hl }
       hls[#hls + 1] = { li, 1, 2, p_hl }
-      -- Status icon colour
+      -- On selected rows keep status icon in the row highlight so it doesn't clash
       hls[#hls + 1] = { li, 3, 4, is_sel and row_hl or s_hl }
     end
   end
 
-  -- Footer hint
+  -- ── Footer hint ───────────────────────────────────────────────────────────
   lines[#lines + 1] = string.rep("─", w)
   hls[#hls + 1] = { #lines - 1, 0, w, "TodoSeparator" }
-  local hint = " a:add d:del e:edit <CR>:toggle s:scope ?:help "
+  local hint = " a:add  d:del  e:edit  <CR>:toggle  s:scope  ?:help "
   lines[#lines + 1] = utils.truncate(hint, w)
   hls[#hls + 1] = { #lines - 1, 0, w, "TodoFooter" }
 
   set_buf_lines(buf, lines)
 
-  -- Apply highlights
-  vim.api.nvim_buf_clear_namespace(buf, -1, 0, -1)
+  -- Apply highlight extmarks
   local ns = vim.api.nvim_create_namespace("todo_list_hl")
+  vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
   for _, hl in ipairs(hls) do
-    local line, cs, ce, group = hl[1], hl[2], hl[3], hl[4]
-    pcall(vim.api.nvim_buf_add_highlight, buf, ns, group, line, cs, ce)
+    pcall(vim.api.nvim_buf_add_highlight, buf, ns, hl[4], hl[1], hl[2], hl[3])
   end
 end
 
@@ -228,18 +237,20 @@ local function render_detail()
   local lines = {}
   local hls   = {}
 
-  -- Panel title
+  -- ── Panel title ───────────────────────────────────────────────────────────
   lines[#lines + 1] = utils.center("  Detail View ", w)
   hls[#hls + 1] = { #lines - 1, 0, w, "TodoHeader" }
   lines[#lines + 1] = string.rep("─", w)
   hls[#hls + 1] = { #lines - 1, 0, w, "TodoSeparator" }
 
+  -- ── Empty selection ───────────────────────────────────────────────────────
   if not todo then
     lines[#lines + 1] = ""
     lines[#lines + 1] = utils.center("Select a TODO", w)
     hls[#hls + 1] = { #lines - 1, 0, w, "TodoEmpty" }
     lines[#lines + 1] = utils.center("to see details", w)
     hls[#hls + 1] = { #lines - 1, 0, w, "TodoEmpty" }
+
     set_buf_lines(buf, lines)
     local ns = vim.api.nvim_create_namespace("todo_detail_hl")
     vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
@@ -249,21 +260,21 @@ local function render_detail()
     return
   end
 
+  -- Helper: one key-value row with individual highlight spans
   local function field(key, value, val_hl)
     local k = utils.rpad(key .. ":", 12)
     lines[#lines + 1] = " " .. k .. " " .. (value or "—")
     local li = #lines - 1
-    hls[#hls + 1] = { li, 1, 1 + #k, "TodoDetailKey" }
+    hls[#hls + 1] = { li, 1, 1 + #k,     "TodoDetailKey" }
     hls[#hls + 1] = { li, 1 + #k + 1, w, val_hl or "TodoDetailValue" }
   end
 
+  -- ── Title (word-wrapped) ──────────────────────────────────────────────────
   lines[#lines + 1] = ""
-  -- Title (possibly wrapped)
-  local title = todo.title or "Untitled"
   lines[#lines + 1] = " Title:"
   hls[#hls + 1] = { #lines - 1, 1, 7, "TodoDetailKey" }
-  -- Word-wrap title
-  local title_words = vim.split(title, " ")
+
+  local title_words = vim.split(todo.title or "Untitled", " ")
   local cur_line    = "   "
   for _, word in ipairs(title_words) do
     if vim.fn.strdisplaywidth(cur_line .. word) > w - 2 then
@@ -279,18 +290,18 @@ local function render_detail()
 
   lines[#lines + 1] = ""
 
-  -- Status
+  -- ── Metadata fields ───────────────────────────────────────────────────────
   local s_icon, s_hl = utils.status_icon(todo.status)
-  field("Status", s_icon .. "  " .. (todo.status or "pending"), s_hl)
+  field("Status",   s_icon .. "  " .. (todo.status   or "pending"), s_hl)
 
-  -- Priority
   local p_icon, p_hl = utils.priority_icon(todo.priority)
-  field("Priority", p_icon .. "  " .. (todo.priority or "low"), p_hl)
+  field("Priority", p_icon .. "  " .. (todo.priority or "low"),     p_hl)
 
-  field("ID",         todo.id)
-  field("Created",    utils.fmt_time(todo.created_at))
-  field("Updated",    utils.fmt_time(todo.updated_at))
+  field("ID",      todo.id)
+  field("Created", utils.fmt_time(todo.created_at))
+  field("Updated", utils.fmt_time(todo.updated_at))
 
+  -- ── Description (word-wrapped) ────────────────────────────────────────────
   lines[#lines + 1] = ""
   lines[#lines + 1] = string.rep("─", w)
   hls[#hls + 1] = { #lines - 1, 0, w, "TodoSeparator" }
@@ -299,10 +310,9 @@ local function render_detail()
   lines[#lines + 1] = ""
 
   if todo.description and todo.description ~= "" then
-    -- Word-wrap description
     local desc_w = w - 3
-    local words   = vim.split(todo.description, " ")
-    local dl      = "   "
+    local words  = vim.split(todo.description, " ")
+    local dl     = "   "
     for _, word in ipairs(words) do
       if vim.fn.strdisplaywidth(dl .. word) > desc_w then
         lines[#lines + 1] = dl
@@ -331,24 +341,22 @@ local function render_detail()
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- Full render pass
+-- Full render pass (list + detail + cursor sync)
 -- ─────────────────────────────────────────────────────────────────────────────
 local function render()
   render_list()
   render_detail()
-  -- Sync cursor position in list window
   if state.list_win and vim.api.nvim_win_is_valid(state.list_win) then
-    -- Header = 2 lines, so offset by 2
-    local target = state.cursor + 2
-    pcall(vim.api.nvim_win_set_cursor, state.list_win, { target, 0 })
+    -- Header occupies lines 0-1, so item i is at line i+2
+    pcall(vim.api.nvim_win_set_cursor, state.list_win, { state.cursor + 2, 0 })
   end
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- Reload todos from storage and re-render
+-- Reload todos from storage then re-render
 -- ─────────────────────────────────────────────────────────────────────────────
 local function reload()
-  state.todos = storage.load(state.scope)
+  state.todos  = storage.load(state.scope)
   state.cursor = utils.clamp(state.cursor, 1, math.max(1, #state.todos))
   render()
 end
@@ -364,25 +372,25 @@ local function open_windows(config)
   state.left_width   = g.lw
   state.right_width  = g.rw
 
-  -- ── Outer border window (decorative) ────────────────────────────────────
+  -- ── Outer border window (decorative chrome) ───────────────────────────────
   state.border_buf = make_buf()
   state.border_win = vim.api.nvim_open_win(state.border_buf, false, {
-    relative = "editor",
-    row      = g.row,
-    col      = g.col,
-    width    = g.width,
-    height   = g.height,
-    style    = "minimal",
-    border   = config.ui.border,
-    title    = " ✦ Todo Manager ",
+    relative  = "editor",
+    row       = g.row,
+    col       = g.col,
+    width     = g.width,
+    height    = g.height,
+    style     = "minimal",
+    border    = config.ui.border,
+    title     = " ✦ Todo Manager ",
     title_pos = "center",
-    zindex   = 49,
+    zindex    = 49,
   })
   vim.api.nvim_set_option_value("winhighlight",
     "Normal:TodoNormal,FloatBorder:TodoBorder,FloatTitle:TodoTitle",
     { win = state.border_win })
 
-  -- ── Left (list) window ──────────────────────────────────────────────────
+  -- ── Left (list) window — gets focus ───────────────────────────────────────
   state.list_buf = make_buf()
   state.list_win = vim.api.nvim_open_win(state.list_buf, true, {
     relative = "editor",
@@ -400,12 +408,12 @@ local function open_windows(config)
   vim.api.nvim_set_option_value("cursorline", false, { win = state.list_win })
   vim.api.nvim_set_option_value("scrolloff",  0,     { win = state.list_win })
 
-  -- ── Right (detail) window ───────────────────────────────────────────────
+  -- ── Right (detail) window ─────────────────────────────────────────────────
   state.detail_buf = make_buf()
   state.detail_win = vim.api.nvim_open_win(state.detail_buf, false, {
     relative = "editor",
     row      = g.row + 1,
-    col      = g.col + g.lw + 2,  -- +1 for border, +1 for divider
+    col      = g.col + g.lw + 2,  -- +1 border col, +1 divider col
     width    = g.rw,
     height   = g.height - 2,
     style    = "minimal",
@@ -415,13 +423,6 @@ local function open_windows(config)
   vim.api.nvim_set_option_value("winhighlight",
     "Normal:TodoNormal",
     { win = state.detail_win })
-
-  -- Draw the vertical divider line into the border buffer
-  local divider_lines = {}
-  for _ = 1, g.height - 2 do
-    divider_lines[#divider_lines + 1] = string.rep(" ", g.lw) .. "│"
-  end
-  -- (We don't write to border buf — divider is implicit from window edge)
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -446,7 +447,7 @@ local function setup_keymaps(config)
   end, opts)
 
   vim.keymap.set("n", "G", function()
-    state.cursor = #state.todos
+    state.cursor = math.max(1, #state.todos)
     render()
   end, opts)
 
@@ -480,13 +481,16 @@ local function setup_keymaps(config)
   vim.keymap.set("n", pk.delete, function()
     local todo = state.todos[state.cursor]
     if not todo then return end
-    M.confirm("Delete \"" .. utils.truncate(todo.title, 30) .. "\"? [y/N]: ", function(ans)
-      if ans:lower() == "y" then
-        storage.delete(state.scope, todo.id)
-        state.cursor = utils.clamp(state.cursor, 1, math.max(1, #state.todos - 1))
-        reload()
+    M.confirm(
+      'Delete "' .. utils.truncate(todo.title, 30) .. '"? [y/N]: ',
+      function(ans)
+        if ans:lower() == "y" then
+          storage.delete(state.scope, todo.id)
+          state.cursor = utils.clamp(state.cursor, 1, math.max(1, #state.todos - 1))
+          reload()
+        end
       end
-    end)
+    )
   end, opts)
 
   -- Edit
@@ -501,7 +505,7 @@ local function setup_keymaps(config)
     M.switch_scope(config)
   end, opts)
 
-  -- Move item down
+  -- Move item down in list
   vim.keymap.set("n", pk.move_down, function()
     if state.cursor < #state.todos then
       storage.reorder(state.scope, state.cursor, state.cursor + 1)
@@ -510,7 +514,7 @@ local function setup_keymaps(config)
     end
   end, opts)
 
-  -- Move item up
+  -- Move item up in list
   vim.keymap.set("n", pk.move_up, function()
     if state.cursor > 1 then
       storage.reorder(state.scope, state.cursor, state.cursor - 1)
@@ -520,8 +524,8 @@ local function setup_keymaps(config)
   end, opts)
 
   -- Close
-  vim.keymap.set("n", pk.close,   M.close, opts)
-  vim.keymap.set("n", "<Esc>",    M.close, opts)
+  vim.keymap.set("n", pk.close, M.close, opts)
+  vim.keymap.set("n", "<Esc>",  M.close, opts)
 
   -- Help overlay
   vim.keymap.set("n", pk.help, function()
@@ -533,7 +537,7 @@ end
 -- Public: Open the UI
 -- ─────────────────────────────────────────────────────────────────────────────
 function M.open(config)
-  -- If already open, just focus
+  -- If already open just focus it
   if state.list_win and vim.api.nvim_win_is_valid(state.list_win) then
     vim.api.nvim_set_current_win(state.list_win)
     return
@@ -542,11 +546,12 @@ function M.open(config)
   state.config = config
   state.scope  = config.default_scope or "project"
 
-  M.setup_highlights()
+  -- Re-apply highlights with the user's color config on every open
+  M.setup_highlights(config.colors)
   open_windows(config)
   setup_keymaps(config)
 
-  -- Close all windows when list buf is wiped
+  -- Tear everything down cleanly when the list window is closed any other way
   vim.api.nvim_create_autocmd("WinClosed", {
     pattern  = tostring(state.list_win),
     once     = true,
@@ -574,7 +579,7 @@ function M.close()
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- Input helpers (non-blocking prompt using vim.ui.input)
+-- Input helpers (non-blocking via vim.ui.input)
 -- ─────────────────────────────────────────────────────────────────────────────
 function M.confirm(prompt, cb)
   vim.ui.input({ prompt = prompt }, function(ans)
@@ -582,9 +587,9 @@ function M.confirm(prompt, cb)
   end)
 end
 
---- Multi-field input form via sequential vim.ui.input calls
----@param fields table  { { prompt, default, key } }
----@param cb function   receives table of answers keyed by field.key
+--- Drive a sequential multi-field form through vim.ui.input
+---@param fields table  list of { prompt, default, key }
+---@param cb     function  called with table of { [key] = answer }
 local function multi_input(fields, cb)
   local results = {}
   local function next_field(i)
@@ -594,7 +599,7 @@ local function multi_input(fields, cb)
     end
     local f = fields[i]
     vim.ui.input({ prompt = f.prompt, default = f.default or "" }, function(val)
-      if val == nil then return end  -- cancelled
+      if val == nil then return end  -- user cancelled with <C-c>
       results[f.key] = val
       next_field(i + 1)
     end)
@@ -612,9 +617,9 @@ function M.quick_add(config, prefill_title)
   end
 
   local fields = {
-    { prompt = "Title: ",       key = "title",       default = prefill_title or "" },
-    { prompt = "Description: ", key = "description", default = "" },
-    { prompt = "Priority (low/medium/high): ", key = "priority", default = "medium" },
+    { prompt = "Title: ",                        key = "title",       default = prefill_title or "" },
+    { prompt = "Description: ",                  key = "description", default = "" },
+    { prompt = "Priority (low/medium/high): ",   key = "priority",    default = "medium" },
   }
 
   multi_input(fields, function(res)
@@ -641,11 +646,9 @@ function M.quick_add(config, prefill_title)
     storage.add(state.scope, todo)
     utils.info("TODO added: " .. todo.title)
 
-    -- If UI is open, refresh
+    -- If the UI is open, refresh and select the new item
     if state.list_win and vim.api.nvim_win_is_valid(state.list_win) then
-      reload()
-      -- Select the new item (last in list)
-      state.todos = storage.load(state.scope)
+      state.todos  = storage.load(state.scope)
       state.cursor = #state.todos
       render()
       vim.api.nvim_set_current_win(state.list_win)
@@ -658,10 +661,10 @@ end
 -- ─────────────────────────────────────────────────────────────────────────────
 function M.edit_todo(config, todo)
   local fields = {
-    { prompt = "Title: ",       key = "title",       default = todo.title or "" },
-    { prompt = "Description: ", key = "description", default = todo.description or "" },
-    { prompt = "Priority (low/medium/high): ", key = "priority", default = todo.priority or "medium" },
-    { prompt = "Status (pending/in_progress/done): ", key = "status", default = todo.status or "pending" },
+    { prompt = "Title: ",                               key = "title",       default = todo.title or "" },
+    { prompt = "Description: ",                         key = "description", default = todo.description or "" },
+    { prompt = "Priority (low/medium/high): ",          key = "priority",    default = todo.priority or "medium" },
+    { prompt = "Status (pending/in_progress/done): ",   key = "status",      default = todo.status or "pending" },
   }
 
   multi_input(fields, function(res)
@@ -696,20 +699,23 @@ function M.edit_todo(config, todo)
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- Public: Quick-toggle status of currently selected TODO (no UI needed)
+-- Public: Quick-toggle the selected TODO's status (works without the UI open)
 -- ─────────────────────────────────────────────────────────────────────────────
 function M.quick_toggle(config)
   state.config = state.config or config
   local scope  = state.scope or config.default_scope or "project"
   local todos  = storage.load(scope)
+
   if #todos == 0 then
     utils.warn("No TODOs found in scope: " .. scope)
     return
   end
-  local todo = todos[state.cursor] or todos[1]
+
+  local todo       = todos[state.cursor] or todos[1]
   local new_status = utils.next_status(todo.status)
   storage.update(scope, todo.id, { status = new_status })
   utils.info(string.format("'%s' → %s", utils.truncate(todo.title, 30), new_status))
+
   if state.list_win and vim.api.nvim_win_is_valid(state.list_win) then
     reload()
   end
@@ -720,13 +726,16 @@ end
 -- ─────────────────────────────────────────────────────────────────────────────
 function M.switch_scope(config, explicit_scope)
   state.config = state.config or config
+
   if explicit_scope then
     state.scope = explicit_scope
   else
     state.scope = state.scope == "project" and "global" or "project"
   end
+
   state.cursor = 1
   utils.info("Scope → " .. state.scope)
+
   if state.list_win and vim.api.nvim_win_is_valid(state.list_win) then
     reload()
   end
@@ -736,22 +745,22 @@ end
 -- Public: Show help overlay
 -- ─────────────────────────────────────────────────────────────────────────────
 function M.show_help(config)
-  local pk   = config.panel_keymaps
+  local pk    = config.panel_keymaps
   local lines = {
     "",
     utils.center("  ✦ Keybindings ", 40),
     string.rep("─", 40),
     "",
-    string.format("  %-8s  Navigate up/down", "j / k"),
-    string.format("  %-8s  Add new TODO", pk.add),
-    string.format("  %-8s  Delete TODO", pk.delete),
-    string.format("  %-8s  Edit TODO", pk.edit),
-    string.format("  %-8s  Toggle status", pk.toggle),
-    string.format("  %-8s  Cycle priority", pk.next_prio),
-    string.format("  %-8s  Move item up", pk.move_up),
-    string.format("  %-8s  Move item down", pk.move_down),
-    string.format("  %-8s  Switch scope", pk.scope),
-    string.format("  %-8s  Close", pk.close),
+    string.format("  %-8s  Navigate up / down",  "j / k"),
+    string.format("  %-8s  Add new TODO",         pk.add),
+    string.format("  %-8s  Delete TODO",          pk.delete),
+    string.format("  %-8s  Edit TODO",            pk.edit),
+    string.format("  %-8s  Toggle status",        pk.toggle),
+    string.format("  %-8s  Cycle priority",       pk.next_prio),
+    string.format("  %-8s  Move item up",         pk.move_up),
+    string.format("  %-8s  Move item down",       pk.move_down),
+    string.format("  %-8s  Switch scope",         pk.scope),
+    string.format("  %-8s  Close",                pk.close),
     "",
     string.rep("─", 40),
     utils.center("  Press any key to close ", 40),
@@ -780,28 +789,23 @@ function M.show_help(config)
     "Normal:TodoNormal,FloatBorder:TodoBorder,FloatTitle:TodoTitle",
     { win = win })
 
-  -- Highlight
+  -- Highlights
   local ns = vim.api.nvim_create_namespace("todo_help_hl")
   pcall(vim.api.nvim_buf_add_highlight, buf, ns, "TodoHeader", 2, 0, -1)
   for i = 4, #lines - 3 do
     pcall(vim.api.nvim_buf_add_highlight, buf, ns, "TodoDetailValue", i, 0, -1)
   end
 
-  -- Any key closes
-  vim.keymap.set("n", "<Esc>", function()
+  -- Any of these keys dismisses the overlay and returns focus
+  local function close_help()
     pcall(vim.api.nvim_win_close, win, true)
     if state.list_win and vim.api.nvim_win_is_valid(state.list_win) then
       vim.api.nvim_set_current_win(state.list_win)
     end
-  end, { buffer = buf, noremap = true, silent = true })
+  end
 
-  for _, key in ipairs({ "q", "<CR>", "?", "<Space>" }) do
-    vim.keymap.set("n", key, function()
-      pcall(vim.api.nvim_win_close, win, true)
-      if state.list_win and vim.api.nvim_win_is_valid(state.list_win) then
-        vim.api.nvim_set_current_win(state.list_win)
-      end
-    end, { buffer = buf, noremap = true, silent = true })
+  for _, key in ipairs({ "q", "<Esc>", "<CR>", "?", "<Space>" }) do
+    vim.keymap.set("n", key, close_help, { buffer = buf, noremap = true, silent = true })
   end
 end
 
