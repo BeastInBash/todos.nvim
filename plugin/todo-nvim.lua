@@ -1,0 +1,4 @@
+--- plugin/todo-nvim.lua
+--- Loaded automatically by Neovim's runtime; exposes the module.
+--- Users call require("todo-nvim").setup({}) from their config.
+--- Nothing is executed here — all side-effects live in setup().
