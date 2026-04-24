@@ -7,6 +7,7 @@ local M = {}
 
 local storage = require("todo-nvim.storage")
 local utils   = require("todo-nvim.utils")
+local editor  = require("todo-nvim.editor")
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Default Rose Pine Moon palette
@@ -211,7 +212,7 @@ local function render_list()
   -- ── Footer hint ───────────────────────────────────────────────────────────
   lines[#lines + 1] = string.rep("─", w)
   hls[#hls + 1] = { #lines - 1, 0, w, "TodoSeparator" }
-  local hint = " a:add  d:del  e:edit  <CR>:toggle  s:scope  ?:help "
+  local hint = " a:add  d:del  e:edit  <CR>:toggle  v:preview  s:scope  ?:help "
   lines[#lines + 1] = utils.truncate(hint, w)
   hls[#hls + 1] = { #lines - 1, 0, w, "TodoFooter" }
 
@@ -301,30 +302,30 @@ local function render_detail()
   field("Created", utils.fmt_time(todo.created_at))
   field("Updated", utils.fmt_time(todo.updated_at))
 
-  -- ── Description (word-wrapped) ────────────────────────────────────────────
+  -- ── Description — rendered as raw Markdown lines ─────────────────────────
+  -- We intentionally write the raw Markdown text here.
+  -- markview.nvim attaches to buffers with ft=markdown and renders them;
+  -- the detail buffer gets ft=markdown set below so markview picks it up.
   lines[#lines + 1] = ""
   lines[#lines + 1] = string.rep("─", w)
   hls[#hls + 1] = { #lines - 1, 0, w, "TodoSeparator" }
-  lines[#lines + 1] = " Description:"
+
+  local hint_suffix = todo.description and "  v:full preview" or ""
+  lines[#lines + 1] = " Description:" .. hint_suffix
   hls[#hls + 1] = { #lines - 1, 1, 13, "TodoDetailKey" }
+  if hint_suffix ~= "" then
+    hls[#hls + 1] = { #lines - 1, 14, w, "TodoFooter" }
+  end
   lines[#lines + 1] = ""
 
   if todo.description and todo.description ~= "" then
-    local desc_w = w - 3
-    local words  = vim.split(todo.description, " ")
-    local dl     = "   "
-    for _, word in ipairs(words) do
-      if vim.fn.strdisplaywidth(dl .. word) > desc_w then
-        lines[#lines + 1] = dl
-        hls[#hls + 1] = { #lines - 1, 0, w, "TodoDetailDesc" }
-        dl = "   " .. word .. " "
-      else
-        dl = dl .. word .. " "
-      end
-    end
-    if dl ~= "   " then
-      lines[#lines + 1] = dl
-      hls[#hls + 1] = { #lines - 1, 0, w, "TodoDetailDesc" }
+    -- Split stored multiline string back into individual lines
+    local desc_lines = vim.split(todo.description, "\n", { plain = true })
+    for _, dl in ipairs(desc_lines) do
+      -- Indent each line by 2 spaces for visual padding inside the panel
+      lines[#lines + 1] = "  " .. dl
+      -- Don't add hl entries — markview will handle its own highlight extmarks
+      -- on the ft=markdown buffer
     end
   else
     lines[#lines + 1] = "   (no description)"
@@ -332,6 +333,9 @@ local function render_detail()
   end
 
   set_buf_lines(buf, lines)
+
+  -- Set filetype AFTER writing lines so markview attaches on the final content
+  pcall(vim.api.nvim_set_option_value, "filetype", "markdown", { buf = buf })
 
   local ns = vim.api.nvim_create_namespace("todo_detail_hl")
   vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
@@ -531,6 +535,13 @@ local function setup_keymaps(config)
   vim.keymap.set("n", pk.help, function()
     M.show_help(config)
   end, opts)
+
+  -- Full-screen Markdown preview of description
+  vim.keymap.set("n", "v", function()
+    local todo = state.todos[state.cursor]
+    if not todo then return end
+    editor.preview_description(todo.description)
+  end, opts)
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -609,6 +620,7 @@ end
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Public: Quick-add a TODO
+-- Flow: title → priority (vim.ui.input) → description (Markdown editor)
 -- ─────────────────────────────────────────────────────────────────────────────
 function M.quick_add(config, prefill_title)
   state.config = config
@@ -616,13 +628,13 @@ function M.quick_add(config, prefill_title)
     state.scope = config.default_scope or "project"
   end
 
-  local fields = {
-    { prompt = "Title: ",                        key = "title",       default = prefill_title or "" },
-    { prompt = "Description: ",                  key = "description", default = "" },
-    { prompt = "Priority (low/medium/high): ",   key = "priority",    default = "medium" },
+  -- Step 1 — title + priority via normal prompt fields
+  local meta_fields = {
+    { prompt = "Title: ",                      key = "title",    default = prefill_title or "" },
+    { prompt = "Priority (low/medium/high): ", key = "priority", default = "medium" },
   }
 
-  multi_input(fields, function(res)
+  multi_input(meta_fields, function(res)
     if not res.title or res.title == "" then
       utils.warn("Title is required.")
       return
@@ -633,41 +645,54 @@ function M.quick_add(config, prefill_title)
       priority = "medium"
     end
 
-    local todo = {
-      id          = utils.new_id(),
-      title       = res.title,
-      description = res.description ~= "" and res.description or nil,
-      status      = "pending",
-      priority    = priority,
-      created_at  = utils.now(),
-      updated_at  = utils.now(),
-    }
+    -- Step 2 — open Markdown editor for description
+    editor.open_editor({
+      initial = "",
+      on_save = function(desc_text)
+        local todo = {
+          id          = utils.new_id(),
+          title       = res.title,
+          description = desc_text ~= "" and desc_text or nil,
+          status      = "pending",
+          priority    = priority,
+          created_at  = utils.now(),
+          updated_at  = utils.now(),
+        }
 
-    storage.add(state.scope, todo)
-    utils.info("TODO added: " .. todo.title)
+        storage.add(state.scope, todo)
+        utils.info("TODO added: " .. todo.title)
 
-    -- If the UI is open, refresh and select the new item
-    if state.list_win and vim.api.nvim_win_is_valid(state.list_win) then
-      state.todos  = storage.load(state.scope)
-      state.cursor = #state.todos
-      render()
-      vim.api.nvim_set_current_win(state.list_win)
-    end
+        -- Refresh list if the main UI is open
+        if state.list_win and vim.api.nvim_win_is_valid(state.list_win) then
+          state.todos  = storage.load(state.scope)
+          state.cursor = #state.todos
+          render()
+          vim.api.nvim_set_current_win(state.list_win)
+        end
+      end,
+      on_cancel = function()
+        utils.info("Add cancelled.")
+        if state.list_win and vim.api.nvim_win_is_valid(state.list_win) then
+          vim.api.nvim_set_current_win(state.list_win)
+        end
+      end,
+    })
   end)
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Public: Edit an existing TODO
+-- Flow: title + priority + status (vim.ui.input) → description (Markdown editor)
 -- ─────────────────────────────────────────────────────────────────────────────
 function M.edit_todo(config, todo)
-  local fields = {
-    { prompt = "Title: ",                               key = "title",       default = todo.title or "" },
-    { prompt = "Description: ",                         key = "description", default = todo.description or "" },
-    { prompt = "Priority (low/medium/high): ",          key = "priority",    default = todo.priority or "medium" },
-    { prompt = "Status (pending/in_progress/done): ",   key = "status",      default = todo.status or "pending" },
+  -- Step 1 — edit metadata fields
+  local meta_fields = {
+    { prompt = "Title: ",                             key = "title",    default = todo.title    or "" },
+    { prompt = "Priority (low/medium/high): ",        key = "priority", default = todo.priority or "medium" },
+    { prompt = "Status (pending/in_progress/done): ", key = "status",   default = todo.status   or "pending" },
   }
 
-  multi_input(fields, function(res)
+  multi_input(meta_fields, function(res)
     if not res.title or res.title == "" then
       utils.warn("Title cannot be empty.")
       return
@@ -683,18 +708,38 @@ function M.edit_todo(config, todo)
       status = todo.status
     end
 
-    storage.update(state.scope, todo.id, {
-      title       = res.title,
-      description = res.description ~= "" and res.description or nil,
-      priority    = priority,
-      status      = status,
-    })
+    -- Step 2 — open Markdown editor pre-filled with existing description
+    editor.open_editor({
+      initial = todo.description or "",
+      on_save = function(desc_text)
+        storage.update(state.scope, todo.id, {
+          title       = res.title,
+          description = desc_text ~= "" and desc_text or nil,
+          priority    = priority,
+          status      = status,
+        })
 
-    utils.info("TODO updated.")
-    if state.list_win and vim.api.nvim_win_is_valid(state.list_win) then
-      reload()
-      vim.api.nvim_set_current_win(state.list_win)
-    end
+        utils.info("TODO updated.")
+        if state.list_win and vim.api.nvim_win_is_valid(state.list_win) then
+          reload()
+          vim.api.nvim_set_current_win(state.list_win)
+        end
+      end,
+      on_cancel = function()
+        -- Metadata changes are still committed; only description edit was cancelled.
+        -- Save meta without touching description.
+        storage.update(state.scope, todo.id, {
+          title    = res.title,
+          priority = priority,
+          status   = status,
+        })
+        utils.info("Description edit cancelled — metadata saved.")
+        if state.list_win and vim.api.nvim_win_is_valid(state.list_win) then
+          reload()
+          vim.api.nvim_set_current_win(state.list_win)
+        end
+      end,
+    })
   end)
 end
 
@@ -756,6 +801,7 @@ function M.show_help(config)
     string.format("  %-8s  Delete TODO",          pk.delete),
     string.format("  %-8s  Edit TODO",            pk.edit),
     string.format("  %-8s  Toggle status",        pk.toggle),
+    string.format("  %-8s  Preview description",   "v"),
     string.format("  %-8s  Cycle priority",       pk.next_prio),
     string.format("  %-8s  Move item up",         pk.move_up),
     string.format("  %-8s  Move item down",       pk.move_down),
